@@ -6,18 +6,23 @@
     and actions related to them
 */
 
+enum COLOR_MODEL {RGB, RGBA, grayscale};
+
 //basic typedefs
 typedef unsigned char BYTE;
 typedef int LONG;
 typedef unsigned int DWORD;
 typedef short WORD;
 
-//pixel definition (supports RGB, RGBA, grayscale)
+//pixel color model (supports RGB, RGBA, grayscale)
 typedef struct
 {
     BYTE r,g,b,a;
+    enum COLOR_MODEL cm;
 }__attribute__((packed)) pixel;
 
+
+//Bitmap file format: https://en.wikipedia.org/wiki/BMP_file_format
 //first image header (file header)
 typedef struct
 {
@@ -55,5 +60,8 @@ typedef struct
     //important colors (can be set to 1)
     DWORD important_colors;
 }__attribute__((packed)) INFORMATION_HEADER;
+
+//bitmaps store pixels as BGRA and so R and B values must be swapped
+extern void swap_rb_values(pixel *p);
 
 #endif
