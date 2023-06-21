@@ -1,3 +1,3 @@
 # imgp_remake
-A remake for the basic image editor (imgp) made in C.\n
+A remake for the basic image editor (imgp) made in C.
 The main purpose for the remake is to fix a lot certain issues, add more functionality and merge the functions that were made for different file formats (RGB, RGBA, etc)
