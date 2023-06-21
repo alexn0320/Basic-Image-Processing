@@ -24,6 +24,7 @@ void read_headers(const char* path, FILE_HEADER *fh, INFORMATION_HEADER *ih)
     //the information headers is 40 bytes in size
     fread(ih, sizeof(INFORMATION_HEADER), 1, f);
 
+    printf("bitmap information:\n");
     printf("<width> %d\n<height> %d\n", ih->bitmap_width, ih->bitmap_height);
     printf("<bits per pixel> %hu\n", ih->bits_per_pixel);
 
