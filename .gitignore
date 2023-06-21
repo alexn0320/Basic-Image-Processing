@@ -1,0 +1,5 @@
+#executable
+app
+
+#object files
+*.o
