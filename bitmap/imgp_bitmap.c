@@ -77,12 +77,14 @@ void write_bitmap(const char *path, FILE_HEADER fh, INFORMATION_HEADER ih, pixel
 {
     FILE *f = fopen(path, "wb");
 
+    //aux values
     FILE_HEADER fh_aux;
     INFORMATION_HEADER ih_aux;
 
     size_t write_size = ih.bits_per_pixel / 8;
     size_t data_size = write_size * ih.bitmap_height * ih.bitmap_width;
 
+    //sets the headers of the bitmap
     fh_aux.header_field = 0x4D42;
     fh_aux.bmp_file_size = sizeof(ih) + sizeof(fh) + data_size;
     fh_aux.reserved_1 = 0;
@@ -101,11 +103,14 @@ void write_bitmap(const char *path, FILE_HEADER fh, INFORMATION_HEADER ih, pixel
     ih_aux.color_pallete = 0;
     ih_aux.important_colors = 0;
 
+    //writes the headers
     fwrite(&fh_aux, sizeof(fh_aux), 1, f);
     fwrite(&ih_aux, sizeof(ih_aux), 1, f);
 
+    //jumps to the pixel data start location
     fseek(f, fh_aux.image_data_offset, SEEK_SET);
 
+    //writes the pixel data
     for (uint32_t i = 0; i < ih.bitmap_height; i++)
     {
         for (uint32_t j = 0; j < ih.bitmap_width; j++)
