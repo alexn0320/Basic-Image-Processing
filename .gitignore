@@ -3,3 +3,6 @@ app
 
 #object files
 *.o
+
+#.bmp files
+*.bmp

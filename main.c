@@ -14,6 +14,10 @@ int main()
     INFORMATION_HEADER ih;
 
     read_headers("mountain.bmp", &fh, &ih);
+    pixel** data = init_pixel_data(ih);
+
+    read_bitmap("mountain.bmp", fh, ih, data);
+    write_bitmap("test.bmp", fh, ih, data);
 
     return 0;
 }
