@@ -42,6 +42,14 @@ pixel **init_pixel_data(INFORMATION_HEADER ih)
     return data;
 }
 
+void free_pixel_data(INFORMATION_HEADER ih, pixel** data)
+{
+    for(uint32_t i = 0; i < ih.bitmap_height; i++)
+        free(data[i]);
+
+    free(data);
+}
+
 void read_bitmap(const char *path, FILE_HEADER fh, INFORMATION_HEADER ih, pixel **data)
 {
     FILE *f = fopen(path, "rb");
@@ -68,9 +76,23 @@ void read_bitmap(const char *path, FILE_HEADER fh, INFORMATION_HEADER ih, pixel 
 
         break;
 
+    case 32:
+        for (uint32_t i = 0; i < ih.bitmap_height; i++)
+        {
+            for (uint32_t j = 0; j < ih.bitmap_width; j++)
+            {
+                fread(data[i] + j, read_size, 1, f);
+                swap_rb_values(data[i] + j);
+
+                data[i][j].cm = RGBA;
+            }
+        }
+
     default:
         break;
     }
+
+    fclose(f);
 }
 
 void write_bitmap(const char *path, FILE_HEADER fh, INFORMATION_HEADER ih, pixel **data)
@@ -116,7 +138,7 @@ void write_bitmap(const char *path, FILE_HEADER fh, INFORMATION_HEADER ih, pixel
         for (uint32_t j = 0; j < ih.bitmap_width; j++)
         {
             //swap RGBA to BGRA as the file format requires it
-            swap_rb_values(data[i] + j);
+            swap_rb_values(&data[i][j]);
             fwrite(data[i] + j, write_size, 1, f);
             //reswap to RGBA
             swap_rb_values(data[i] + j);
@@ -124,4 +146,26 @@ void write_bitmap(const char *path, FILE_HEADER fh, INFORMATION_HEADER ih, pixel
     }
 
     fclose(f);
+}
+
+void set_pixel(INFORMATION_HEADER ih, pixel* old, pos p, pixel new)
+{
+    //basic error checking
+    if(ih.bitmap_width < p.x || p.x < 0)
+    {
+        printf("Error: invalid position\n");
+        return;
+    }
+
+    if(ih.bitmap_height < p.y || p.y < 0)
+    {
+        printf("Error: invalid position\n");
+        return;
+    }
+
+    old->r = new.r;
+    old->g = new.g;
+    old->b = new.b;
+    old->a = new.a;
+    old->cm = new.cm;
 }
