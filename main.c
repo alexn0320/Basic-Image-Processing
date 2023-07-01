@@ -17,7 +17,10 @@ int main()
     pixel** data = init_pixel_data(ih);
 
     read_bitmap("mountain.bmp", fh, ih, data);
+
     write_bitmap("test.bmp", fh, ih, data);
+
+    free_pixel_data(ih, data);
 
     return 0;
 }

@@ -1,17 +1,19 @@
 #ifndef IMGP_UTIL
 #define IMGP_UTIL
 
+#include <stdint.h>
+
 /*
-    util header and source file that defines basic elements of the .bmp file format (image headers, pixel representation)
-    and actions related to them
+    util header and source file that defines basic elements of the .bmp file format (image headers, pixel representation),
+    used color models and actions related to them
 */
 
 enum COLOR_MODEL {RGB, RGBA, grayscale};
 
 //basic typedefs
 typedef unsigned char BYTE;
-typedef int LONG;
-typedef unsigned int DWORD;
+typedef int32_t LONG;
+typedef uint32_t DWORD;
 typedef short WORD;
 
 //pixel color model (supports RGB, RGBA, grayscale)
@@ -21,6 +23,11 @@ typedef struct
     enum COLOR_MODEL cm;
 }__attribute__((packed)) pixel;
 
+//position in image (x, y)
+typedef struct 
+{
+    LONG x, y;
+} pos;
 
 //Bitmap file format: https://en.wikipedia.org/wiki/BMP_file_format
 //first image header (file header)
