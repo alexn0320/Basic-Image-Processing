@@ -27,4 +27,7 @@ extern void read_bitmap(const char *path, FILE_HEADER fh, INFORMATION_HEADER ih,
 extern void write_bitmap(const char *path, FILE_HEADER fh, INFORMATION_HEADER ih, pixel** data);
 //set the pixel at pos p to the new pixel
 extern void set_pixel(INFORMATION_HEADER ih, pixel* old, pos p, pixel new);
+//Gaussian blur implementation
+//https://en.wikipedia.org/wiki/Gaussian_blur
+extern void add_gaussian_blur(INFORMATION_HEADER ih, pixel** data, pixel **new_data, int32_t k);
 #endif

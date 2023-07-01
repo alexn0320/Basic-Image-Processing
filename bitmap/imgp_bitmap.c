@@ -42,9 +42,9 @@ pixel **init_pixel_data(INFORMATION_HEADER ih)
     return data;
 }
 
-void free_pixel_data(INFORMATION_HEADER ih, pixel** data)
+void free_pixel_data(INFORMATION_HEADER ih, pixel **data)
 {
-    for(uint32_t i = 0; i < ih.bitmap_height; i++)
+    for (uint32_t i = 0; i < ih.bitmap_height; i++)
         free(data[i]);
 
     free(data);
@@ -99,14 +99,14 @@ void write_bitmap(const char *path, FILE_HEADER fh, INFORMATION_HEADER ih, pixel
 {
     FILE *f = fopen(path, "wb");
 
-    //aux values
+    // aux values
     FILE_HEADER fh_aux;
     INFORMATION_HEADER ih_aux;
 
     size_t write_size = ih.bits_per_pixel / 8;
     size_t data_size = write_size * ih.bitmap_height * ih.bitmap_width;
 
-    //sets the headers of the bitmap
+    // sets the headers of the bitmap
     fh_aux.header_field = 0x4D42;
     fh_aux.bmp_file_size = sizeof(ih) + sizeof(fh) + data_size;
     fh_aux.reserved_1 = 0;
@@ -125,22 +125,22 @@ void write_bitmap(const char *path, FILE_HEADER fh, INFORMATION_HEADER ih, pixel
     ih_aux.color_pallete = 0;
     ih_aux.important_colors = 0;
 
-    //writes the headers
+    // writes the headers
     fwrite(&fh_aux, sizeof(fh_aux), 1, f);
     fwrite(&ih_aux, sizeof(ih_aux), 1, f);
 
-    //jumps to the pixel data start location
+    // jumps to the pixel data start location
     fseek(f, fh_aux.image_data_offset, SEEK_SET);
 
-    //writes the pixel data
+    // writes the pixel data
     for (uint32_t i = 0; i < ih.bitmap_height; i++)
     {
         for (uint32_t j = 0; j < ih.bitmap_width; j++)
         {
-            //swap RGBA to BGRA as the file format requires it
+            // swap RGBA to BGRA as the file format requires it
             swap_rb_values(&data[i][j]);
             fwrite(data[i] + j, write_size, 1, f);
-            //reswap to RGBA
+            // reswap to RGBA
             swap_rb_values(data[i] + j);
         }
     }
@@ -148,16 +148,16 @@ void write_bitmap(const char *path, FILE_HEADER fh, INFORMATION_HEADER ih, pixel
     fclose(f);
 }
 
-void set_pixel(INFORMATION_HEADER ih, pixel* old, pos p, pixel new)
+void set_pixel(INFORMATION_HEADER ih, pixel *old, pos p, pixel new)
 {
-    //basic error checking
-    if(ih.bitmap_width < p.x || p.x < 0)
+    // basic error checking
+    if (ih.bitmap_width < p.x || p.x < 0)
     {
         printf("Error: invalid position\n");
         return;
     }
 
-    if(ih.bitmap_height < p.y || p.y < 0)
+    if (ih.bitmap_height < p.y || p.y < 0)
     {
         printf("Error: invalid position\n");
         return;
@@ -168,4 +168,87 @@ void set_pixel(INFORMATION_HEADER ih, pixel* old, pos p, pixel new)
     old->b = new.b;
     old->a = new.a;
     old->cm = new.cm;
+}
+
+double_t max(double_t x, double_t y)
+{
+    if(x > y)
+        return x;
+
+    return y;
+}
+
+// helper functions for Gaussian blur
+double_t get_sigma(int32_t k)
+{
+    return max((double_t)k / 2, 1);
+}
+
+double_t get_kernel_width(int32_t k)
+{
+    return 2 * k + 1;
+}
+
+void add_gaussian_blur(INFORMATION_HEADER ih, pixel **data, pixel **new_data, int32_t k)
+{
+    double_t sigma = get_sigma(k);
+    double_t kernel_width = get_kernel_width(k);
+
+    // creates the kernel used for convolution
+    double_t **kernel = malloc(kernel_width * sizeof(double_t *));
+
+    for (uint32_t i = 0; i < kernel_width; i++)
+        kernel[i] = malloc(kernel_width * sizeof(double_t));
+
+    double_t sum = 0.0;
+
+    for (int32_t i = -k; i < k; i++)
+    {
+        for (int32_t j = -k; j < k; j++)
+        {
+            double_t num = (double_t)(-(i * i + j * j));
+            double den = 2 * sigma * sigma;
+
+            double expr = exp(num / den);
+
+            // get kernel value
+            double kernel_value = expr / (2 * M_PI * sigma * sigma);
+
+            kernel[i + k][j + k] = kernel_value;
+            sum += kernel_value;
+        }
+    }
+
+    // normates values to 1
+    for (int32_t i = -k; i < k; i++)
+        for (int32_t j = -k; j < k; j++)
+            kernel[i + k][j + k] = kernel[i + k][j + k] / sum;
+
+    //ignores edges for easer application of blur
+    for (int32_t i = k; i < ih.bitmap_height - k; i++)
+    {
+        for (int32_t j = k; j < ih.bitmap_width - k; j++)
+        {
+            
+            double_t r = 0.0, g = 0.0, b = 0.0;
+
+            //uses kernel to add blur
+            for (int32_t kx = -k; kx < k; kx++)
+            {
+                for (int32_t ky = -k; ky < k; ky++)
+                {
+
+                    double_t kernel_value = kernel[kx + k][ky + k];
+
+                    r += (double_t) data[i - ky][j - kx].r * kernel_value;
+                    g += (double_t) data[i - ky][j - kx].g * kernel_value;
+                    b += (double_t) data[i - ky][j - kx].b * kernel_value;
+                }
+            }
+        
+            new_data[i][j].r = (BYTE) r;
+            new_data[i][j].g = (BYTE) g;
+            new_data[i][j].b = (BYTE) b;
+        }
+    }
 }

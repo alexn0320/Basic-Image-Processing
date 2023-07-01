@@ -18,9 +18,10 @@ int main()
 
     read_bitmap("mountain.bmp", fh, ih, data);
 
-    write_bitmap("test.bmp", fh, ih, data);
+    write_bitmap("test.bmp", fh, ih,  new_data);
 
     free_pixel_data(ih, data);
+    free_pixel_data(ih, new_data);
 
     return 0;
 }
