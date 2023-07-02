@@ -1,5 +1,12 @@
 #include "imgp_bitmap.h"
 
+// Sobel kernels from image convolution
+const double_t K_X[3][3] = {-1, 0, 1,
+                            -2, 0, 2 - 1, 0, 1};
+
+const double_t K_Y[3][3] = {1, 2, 1,
+                            0, 0, 0 - 1, -2, -1};
+
 void read_headers(const char *path, FILE_HEADER *fh, INFORMATION_HEADER *ih)
 {
     FILE *f = fopen(path, "rb");
@@ -170,41 +177,21 @@ void set_pixel(INFORMATION_HEADER ih, pixel *old, pos p, pixel new)
     old->cm = new.cm;
 }
 
-double_t max(double_t x, double_t y)
+void add_gaussian_blur(INFORMATION_HEADER ih, pixel **data, pixel **new_data, int8_t radius, int8_t sigma)
 {
-    if(x > y)
-        return x;
+    double_t kernel_div = 16.0;
+    int8_t kernel_size = radius << 1 + 1;
 
-    return y;
-}
+    double_t** kernel = malloc(kernel_size * sizeof(double_t*));
 
-// helper functions for Gaussian blur
-double_t get_sigma(int32_t k)
-{
-    return max((double_t)k / 2, 1);
-}
-
-double_t get_kernel_width(int32_t k)
-{
-    return 2 * k + 1;
-}
-
-void add_gaussian_blur(INFORMATION_HEADER ih, pixel **data, pixel **new_data, int32_t k)
-{
-    double_t sigma = get_sigma(k);
-    double_t kernel_width = get_kernel_width(k);
-
-    // creates the kernel used for convolution
-    double_t **kernel = malloc(kernel_width * sizeof(double_t *));
-
-    for (uint32_t i = 0; i < kernel_width; i++)
-        kernel[i] = malloc(kernel_width * sizeof(double_t));
+    for(uint8_t i = 0; i < kernel_size; i++)
+        kernel[0] = malloc(kernel_size * sizeof(double_t));
 
     double_t sum = 0.0;
 
-    for (int32_t i = -k; i < k; i++)
+    for (int32_t i = -radius; i < radius; i++)
     {
-        for (int32_t j = -k; j < k; j++)
+        for (int32_t j = -radius; j < radius; j++)
         {
             double_t num = (double_t)(-(i * i + j * j));
             double den = 2 * sigma * sigma;
@@ -214,41 +201,48 @@ void add_gaussian_blur(INFORMATION_HEADER ih, pixel **data, pixel **new_data, in
             // get kernel value
             double kernel_value = expr / (2 * M_PI * sigma * sigma);
 
-            kernel[i + k][j + k] = kernel_value;
+            kernel[i + radius][j + radius] = kernel_value;
             sum += kernel_value;
         }
     }
 
     // normates values to 1
-    for (int32_t i = -k; i < k; i++)
-        for (int32_t j = -k; j < k; j++)
-            kernel[i + k][j + k] = kernel[i + k][j + k] / sum;
+    for (int32_t i = -radius; i < radius; i++)
+        for (int32_t j = -radius; j < radius; j++)
+            kernel[i + radius][j + radius] = kernel[i + radius][j + radius] / sum;
 
-    //ignores edges for easer application of blur
-    for (int32_t i = k; i < ih.bitmap_height - k; i++)
+    convolution(ih, kernel_size, kernel, data, new_data);
+}
+
+void convolution(INFORMATION_HEADER ih, int8_t kernel_size, double_t** kernel, pixel **data, pixel **conv_data)
+{
+    int8_t k = (kernel_size - 1) >> 1;
+
+    for (int32_t i = 0; i < ih.bitmap_height; i++)
     {
-        for (int32_t j = k; j < ih.bitmap_width - k; j++)
+        for (int32_t j = 0; j < ih.bitmap_width; j++)
         {
-            
             double_t r = 0.0, g = 0.0, b = 0.0;
 
-            //uses kernel to add blur
+            // traverse the kernel to obtain the weighted value of the pixel
             for (int32_t kx = -k; kx < k; kx++)
             {
                 for (int32_t ky = -k; ky < k; ky++)
                 {
-
                     double_t kernel_value = kernel[kx + k][ky + k];
 
-                    r += (double_t) data[i - ky][j - kx].r * kernel_value;
-                    g += (double_t) data[i - ky][j - kx].g * kernel_value;
-                    b += (double_t) data[i - ky][j - kx].b * kernel_value;
+                    if ((i - ky > 0 && i - ky < ih.bitmap_height) && (j - kx > 0 && j - kx < ih.bitmap_width))
+                    {
+                        r += data[i - ky][j - kx].r * kernel_value;
+                        g += data[i - ky][j - kx].g * kernel_value;
+                        b += data[i - ky][j - kx].b * kernel_value;
+                    }
                 }
             }
-        
-            new_data[i][j].r = (BYTE) r;
-            new_data[i][j].g = (BYTE) g;
-            new_data[i][j].b = (BYTE) b;
+
+            conv_data[i][j].r = (BYTE) (r);
+            conv_data[i][j].g = (BYTE) (g);
+            conv_data[i][j].b = (BYTE) (b);
         }
     }
 }
