@@ -18,10 +18,13 @@ int main()
 
     read_bitmap("mountain.bmp", fh, ih, data);
 
-    write_bitmap("test.bmp", fh, ih,  new_data);
+    pixel** blur = init_pixel_data(ih);
+
+    add_gaussian_blur(ih, data, blur, 1, 2);
+
+    write_bitmap("out.bmp", fh, ih, blur);
 
     free_pixel_data(ih, data);
-    free_pixel_data(ih, new_data);
 
     return 0;
 }
