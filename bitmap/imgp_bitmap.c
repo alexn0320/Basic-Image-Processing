@@ -179,6 +179,7 @@ void set_pixel(INFORMATION_HEADER ih, pixel *old, pos p, pixel new)
 
 void add_gaussian_blur(INFORMATION_HEADER ih, pixel **data, pixel **new_data, int8_t radius, int8_t sigma)
 {
+    //kernel data 
     double_t kernel_div = 16.0;
     int8_t kernel_size = radius << 1 + 1;
 
@@ -189,6 +190,7 @@ void add_gaussian_blur(INFORMATION_HEADER ih, pixel **data, pixel **new_data, in
 
     double_t sum = 0.0;
 
+    //generates kernel using formula
     for (int32_t i = -radius; i < radius; i++)
     {
         for (int32_t j = -radius; j < radius; j++)
