@@ -16,7 +16,7 @@
 */
 
 //reads the headers of the bitmap file
-extern void read_headers(const char* path, FILE_HEADER *fh, INFORMATION_HEADER *ih);
+extern uint8_t read_headers(const char* path, FILE_HEADER *fh, INFORMATION_HEADER *ih);
 //inits the pixel matrix
 extern pixel** init_pixel_data(INFORMATION_HEADER ih);
 //frees the pixel matrix
@@ -26,10 +26,16 @@ extern void read_bitmap(const char *path, FILE_HEADER fh, INFORMATION_HEADER ih,
 //writes the data to a bitmap file
 extern void write_bitmap(const char *path, FILE_HEADER fh, INFORMATION_HEADER ih, pixel** data);
 //set the pixel at pos p to the new pixel
-extern void set_pixel(INFORMATION_HEADER ih, pixel* old, pos p, pixel new);
-//basic image convolution algorithm
-extern void convolution(INFORMATION_HEADER ih, int8_t kernel_size, double_t** kernel, pixel** data, pixel** conv_data);
-//Gaussian blur implementation
-//https://en.wikipedia.org/wiki/Gaussian_blur
-extern void add_gaussian_blur(INFORMATION_HEADER ih, pixel** data, pixel **new_data, int8_t radius, int8_t sigma);
+extern void set_pixel(INFORMATION_HEADER ih, pixel* old, pixel new);
+//pixelates the image. size represents the actual size of the pixels
+extern void pixelate(INFORMATION_HEADER ih, pixel** data, uint8_t size);
+//convolution function. It operates on one channel at a time, specified by the channel param:
+//0 => R, 1 => G, 2 => B.
+extern double** convolution(INFORMATION_HEADER ih, pixel** data, const uint8_t kernel_size, const double_t kernel[kernel_size][kernel_size], uint8_t channel);
+//convolves all RGB channels instead of one. Can be used for filters such as blur.
+extern pixel** convolution_RGB(INFORMATION_HEADER ih, pixel** data, const uint8_t kernel_size, const double_t kernel[kernel_size][kernel_size]);
+//converts the pixel data to grayscale
+extern void convert_grayscale(INFORMATION_HEADER ih, pixel** data);
+//sobel filter implementation
+extern void sobel(INFORMATION_HEADER ih, pixel** data);
 #endif

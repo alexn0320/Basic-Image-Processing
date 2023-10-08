@@ -1,13 +1,14 @@
 #include "imgp_bitmap.h"
 
-// Sobel kernels from image convolution
-const double_t K_X[3][3] = {-1, 0, 1,
-                            -2, 0, 2 - 1, 0, 1};
+static int32_t min(int32_t a, int32_t b)
+{
+    if (a <= b)
+        return a;
 
-const double_t K_Y[3][3] = {1, 2, 1,
-                            0, 0, 0 - 1, -2, -1};
+    return b;
+}
 
-void read_headers(const char *path, FILE_HEADER *fh, INFORMATION_HEADER *ih)
+uint8_t read_headers(const char *path, FILE_HEADER *fh, INFORMATION_HEADER *ih)
 {
     FILE *f = fopen(path, "rb");
 
@@ -15,7 +16,7 @@ void read_headers(const char *path, FILE_HEADER *fh, INFORMATION_HEADER *ih)
     if (f == NULL)
     {
         printf("Error: file is NULL\n");
-        return;
+        return 0;
     }
 
     // the file headers is 14 bytes in size
@@ -25,7 +26,7 @@ void read_headers(const char *path, FILE_HEADER *fh, INFORMATION_HEADER *ih)
     if (fh->header_field != 0x4D42)
     {
         printf("Error: file is not a bitmap\n");
-        return;
+        return 0;
     }
 
     // the information header is 40 bytes in size
@@ -36,6 +37,8 @@ void read_headers(const char *path, FILE_HEADER *fh, INFORMATION_HEADER *ih)
     printf("<bits per pixel> %hu\n", ih->bits_per_pixel);
 
     fclose(f);
+
+    return 1;
 }
 
 pixel **init_pixel_data(INFORMATION_HEADER ih)
@@ -64,7 +67,7 @@ void read_bitmap(const char *path, FILE_HEADER fh, INFORMATION_HEADER ih, pixel 
     // sets the start of the reading to the image_data_offset (the offset of the pixel matrix)
     fseek(f, fh.image_data_offset, SEEK_SET);
     // the amount of bytes to read for every pixel
-    size_t read_size = ih.bits_per_pixel / 8;
+    size_t read_size = ih.bits_per_pixel >> 3;
 
     switch (ih.bits_per_pixel)
     {
@@ -110,7 +113,7 @@ void write_bitmap(const char *path, FILE_HEADER fh, INFORMATION_HEADER ih, pixel
     FILE_HEADER fh_aux;
     INFORMATION_HEADER ih_aux;
 
-    size_t write_size = ih.bits_per_pixel / 8;
+    size_t write_size = ih.bits_per_pixel >> 3;
     size_t data_size = write_size * ih.bitmap_height * ih.bitmap_width;
 
     // sets the headers of the bitmap
@@ -155,96 +158,180 @@ void write_bitmap(const char *path, FILE_HEADER fh, INFORMATION_HEADER ih, pixel
     fclose(f);
 }
 
-void set_pixel(INFORMATION_HEADER ih, pixel *old, pos p, pixel new)
+void set_pixel(INFORMATION_HEADER ih, pixel *old, pixel new)
 {
-    // basic error checking
-    if (ih.bitmap_width < p.x || p.x < 0)
-    {
-        printf("Error: invalid position\n");
-        return;
-    }
-
-    if (ih.bitmap_height < p.y || p.y < 0)
-    {
-        printf("Error: invalid position\n");
-        return;
-    }
-
-    old->r = new.r;
-    old->g = new.g;
-    old->b = new.b;
-    old->a = new.a;
-    old->cm = new.cm;
+    memcpy(old, &new, sizeof(pixel));
 }
 
-void add_gaussian_blur(INFORMATION_HEADER ih, pixel **data, pixel **new_data, int8_t radius, int8_t sigma)
+void pixelate(INFORMATION_HEADER ih, pixel **data, uint8_t size)
 {
-    //kernel data 
-    double_t kernel_div = 16.0;
-    int8_t kernel_size = radius << 1 + 1;
-
-    double_t** kernel = malloc(kernel_size * sizeof(double_t*));
-
-    for(uint8_t i = 0; i < kernel_size; i++)
-        kernel[0] = malloc(kernel_size * sizeof(double_t));
-
-    double_t sum = 0.0;
-
-    //generates kernel using formula
-    for (int32_t i = -radius; i < radius; i++)
+    for (int i = 0; i < ih.bitmap_height; i += size)
     {
-        for (int32_t j = -radius; j < radius; j++)
+        for (int j = 0; j < ih.bitmap_width; j += size)
         {
-            double_t num = (double_t)(-(i * i + j * j));
-            double den = 2 * sigma * sigma;
+            uint32_t average_r = 0, average_g = 0, average_b = 0;
 
-            double expr = exp(num / den);
+            // get the average of an area size * size
+            for (int ai = i; ai < min(ih.bitmap_height, i + size); ai++)
+            {
+                for (int aj = j; aj < min(ih.bitmap_width, j + size); aj++)
+                {
+                    average_r += data[ai][aj].r;
+                    average_g += data[ai][aj].g;
+                    average_b += data[ai][aj].b;
+                }
+            }
 
-            // get kernel value
-            double kernel_value = expr / (2 * M_PI * sigma * sigma);
-
-            kernel[i + radius][j + radius] = kernel_value;
-            sum += kernel_value;
+            // set all pixel values in that area to the average
+            for (int ai = i; ai < min(ih.bitmap_height, i + size); ai++)
+            {
+                for (int aj = j; aj < min(ih.bitmap_width, j + size); aj++)
+                {
+                    data[ai][aj].r = average_r / (size * size);
+                    data[ai][aj].g = average_g / (size * size);
+                    data[ai][aj].b = average_b / (size * size);
+                }
+            }
         }
     }
-
-    // normates values to 1
-    for (int32_t i = -radius; i < radius; i++)
-        for (int32_t j = -radius; j < radius; j++)
-            kernel[i + radius][j + radius] = kernel[i + radius][j + radius] / sum;
-
-    convolution(ih, kernel_size, kernel, data, new_data);
 }
 
-void convolution(INFORMATION_HEADER ih, int8_t kernel_size, double_t** kernel, pixel **data, pixel **conv_data)
+void convert_grayscale(INFORMATION_HEADER ih, pixel **data)
 {
-    int8_t k = (kernel_size - 1) >> 1;
-
-    for (int32_t i = 0; i < ih.bitmap_height; i++)
+    for (uint32_t i = 0; i < ih.bitmap_height; i++)
     {
-        for (int32_t j = 0; j < ih.bitmap_width; j++)
+        for (uint32_t j = 0; j < ih.bitmap_width; j++)
         {
-            double_t r = 0.0, g = 0.0, b = 0.0;
+            // constant values:
+            // https://mmuratarat.github.io/2020-05-13/rgb_to_grayscale_formulas
+            uint8_t aux = 0.299 * data[i][j].r + 0.587 * data[i][j].g + 0.114 * data[i][j].b;
 
-            // traverse the kernel to obtain the weighted value of the pixel
-            for (int32_t kx = -k; kx < k; kx++)
+            data[i][j].r = aux;
+            data[i][j].g = aux;
+            data[i][j].b = aux;
+        }
+    }
+}
+
+double **convolution(INFORMATION_HEADER ih, pixel **data, const uint8_t kernel_size, const double_t kernel[kernel_size][kernel_size], uint8_t channel)
+{
+    double_t **conv = malloc(ih.bitmap_height * sizeof(double_t *));
+
+    for (uint32_t i = 0; i < ih.bitmap_height; i++)
+        conv[i] = malloc(ih.bitmap_width * sizeof(double_t));
+
+    for (uint32_t i = 0; i < ih.bitmap_height; i++)
+        for (uint32_t j = 0; j < ih.bitmap_width; j++)
+            conv[i][j] = 0;
+
+    // convolution algorithm
+    for (uint32_t i = 0; i < ih.bitmap_height - 2; i++)
+    {
+        for (uint32_t j = 0; j < ih.bitmap_width - 2; j++)
+        {
+            double_t val = 0;
+
+            for (uint32_t ki = 0; ki < kernel_size; ki++)
             {
-                for (int32_t ky = -k; ky < k; ky++)
+                for (uint32_t kj = 0; kj < kernel_size; kj++)
                 {
-                    double_t kernel_value = kernel[kx + k][ky + k];
-
-                    if ((i - ky > 0 && i - ky < ih.bitmap_height) && (j - kx > 0 && j - kx < ih.bitmap_width))
+                    // selects the proper channel based on parameter
+                    switch (channel)
                     {
-                        r += data[i - ky][j - kx].r * kernel_value;
-                        g += data[i - ky][j - kx].g * kernel_value;
-                        b += data[i - ky][j - kx].b * kernel_value;
+                    case 0:
+                        val += data[i + ki][j + kj].r * kernel[ki][kj];
+                        break;
+
+                    case 1:
+                        val += data[i + ki][j + kj].g * kernel[ki][kj];
+                        break;
+
+                    case 2:
+                        val += data[i + ki][j + kj].b * kernel[ki][kj];
+                        break;
                     }
                 }
             }
 
-            conv_data[i][j].r = (BYTE) (r);
-            conv_data[i][j].g = (BYTE) (g);
-            conv_data[i][j].b = (BYTE) (b);
+            conv[i + 1][j + 1] = val;
         }
     }
+
+    return conv;
+}
+
+pixel **convolution_RGB(INFORMATION_HEADER ih, pixel **data, const uint8_t kernel_size, const double_t kernel[kernel_size][kernel_size])
+{
+    // convolution for R channel
+    pixel **conv = malloc(ih.bitmap_height * sizeof(pixel *));
+
+    for (uint32_t i = 0; i < ih.bitmap_height; i++)
+        conv[i] = malloc(ih.bitmap_width * sizeof(pixel));
+
+    pixel empty = {.r = 0, .g = 0, .b = 0, .a = data[0][0].a, .cm = data[0][0].cm};
+
+    for (uint32_t i = 0; i < ih.bitmap_height; i++)
+        for (uint32_t j = 0; j < ih.bitmap_width; j++)
+            conv[i][j] = empty;
+
+    // convolution algorithm
+    for (uint32_t i = 0; i < ih.bitmap_height - 2; i++)
+    {
+        for (uint32_t j = 0; j < ih.bitmap_width - 2; j++)
+        {
+            double_t val_r = 0, val_g = 0, val_b = 0;
+
+            for (uint32_t ki = 0; ki < kernel_size; ki++)
+            {
+                for (uint32_t kj = 0; kj < kernel_size; kj++)
+                {
+                    val_r += data[i + ki][j + kj].r * kernel[ki][kj];
+                    val_g += data[i + ki][j + kj].g * kernel[ki][kj];
+                    val_b += data[i + ki][j + kj].b * kernel[ki][kj];
+                }
+            }
+
+            //clamp values to 255
+            val_r = min(val_r, 255);
+            val_g = min(val_g, 255);
+            val_b = min(val_b, 255);
+
+            conv[i + 1][j + 1].r = val_r;
+            conv[i + 1][j + 1].g = val_g;
+            conv[i + 1][j + 1].b = val_b;
+        }
+    }
+
+    return conv;
+}
+
+void sobel(INFORMATION_HEADER ih, pixel **data)
+{
+    double_t **conv_x = convolution(ih, data, 3, SOBEL_KX, 0);
+    double_t **conv_y = convolution(ih, data, 3, SOBEL_KY, 0);
+
+    for (uint32_t i = 1; i < ih.bitmap_height - 1; i++)
+    {
+        for (uint32_t j = 1; j < ih.bitmap_width - 1; j++)
+        {
+            double mag = sqrt(conv_x[i][j] * conv_x[i][j] + conv_y[i][j] * conv_y[i][j]);
+
+            if (mag > 255)
+                mag = 255;
+
+            data[i][j].r = mag;
+            data[i][j].g = mag;
+            data[i][j].b = mag;
+        }
+    }
+
+    for (uint32_t i = 0; i < ih.bitmap_height; i++)
+        free(conv_x[i]);
+
+    free(conv_x);
+
+    for (uint32_t i = 0; i < ih.bitmap_height; i++)
+        free(conv_y[i]);
+
+    free(conv_y);
 }
