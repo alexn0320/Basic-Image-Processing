@@ -12,7 +12,7 @@
 #include <math.h>
 
 /*
-    Contains all the major functions used to manipule the images
+    Contains all the major functions used to manipulate bitmap images
 */
 
 //reads the headers of the bitmap file
