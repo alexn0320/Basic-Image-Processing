@@ -1,5 +1,2 @@
-# imgp_remake
-A remake for the basic image editor (imgp) made in C.
-The main purpose for the remake is to fix certain issues, add more functionality and merge the functions that were made for different file formats (RGB, RGBA, etc).
-<br>
-The project is currently only tested for Linux.
+* Implements basic image processing algorithms on bitmaps, such as grayscale, pixelation, setting and getting the values of a pixel and convolution (more to be implemented). 
+* No frameworks where used, bitmaps are opened as a binary file and header/pixel data are read directly, while algorithms are implemented in C.
